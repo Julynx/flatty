@@ -41,7 +41,7 @@ git clone https://github.com/Julynx/flatty
 cd flatty
 ```
 ```
-chmod +x install.sh
+chmod +x install.sh bin/flatty
 ```
 ```
 ./install.sh
