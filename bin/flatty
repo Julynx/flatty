@@ -1,0 +1,467 @@
+#!/usr/bin/env python3
+
+"""
+@file     flatty
+@date     22/03/2022
+@version  0.7
+@license  GNU General Public License v2.0
+@url      github.com/Julynx/flatty"
+@author   Julio Cabria
+"""
+
+import os
+import signal
+import subprocess
+from subprocess import Popen
+
+
+# --- Utils ---
+
+def grab(source_str, start, end):
+
+    # Get the index of the first occurence of "start"
+    start_idx = source_str.index(start)
+    l_start = len(start)
+
+    # Look for the string "end" starting from the index of start
+    new_src = source_str[start_idx+l_start:]
+    end_idx = new_src.index(end) + start_idx + l_start
+
+    # Return the text between start_idx and end_idx
+    return source_str[start_idx+l_start:end_idx]
+
+
+# --- CLI Functions ---
+
+def flatpak_install(pkg_ref):
+
+    cmd_str = f"echo $(flatpak install flathub {pkg_ref} -y)"
+
+    output = subprocess.check_output(cmd_str, shell=True)
+    output = output.decode("utf-8")
+
+    if "Installation complete" in output:
+        return "OK"
+
+    return "ERROR"
+
+
+def flatpak_uninstall(pkg_ref):
+
+    cmd_str = f"flatpak uninstall {pkg_ref} -y"
+
+    output = subprocess.check_output(cmd_str, shell=True)
+    output = output.decode("utf-8")
+    if "Uninstall complete" in output:
+        return "OK"
+
+    return "ERROR"
+
+
+def flatpak_list():
+
+    cmd_str = "flatpak list --columns=name,ref,description"
+
+    output = subprocess.check_output(cmd_str, shell=True)
+    splitted = output.decode("utf-8").split("\n")
+    splitted.pop()
+
+    if len(splitted) == 0:
+        return "ERROR"
+
+    return splitted
+
+
+def flatpak_search(query):
+
+    cmd_str = f"flatpak search {query}"
+
+    output = subprocess.check_output(cmd_str, shell=True)
+    output = output.decode("utf-8").strip()
+
+    if "No matches found" in output:
+        return "ERROR"
+
+    return output
+
+
+def flatpak_cleanup():
+
+    output = ""
+
+    cmd_str = f"flatpak uninstall --unused -y"
+    output_bytes = subprocess.check_output(cmd_str, shell=True)
+    output += str(output_bytes.decode("utf-8").strip()) + "\n"
+
+    cmd_str = f"flatpak update -y"
+    output_bytes = subprocess.check_output(cmd_str, shell=True)
+    output += str(output_bytes.decode("utf-8").strip()) + "\n"
+
+    return output
+
+
+# --- GUI Functions ---
+
+def choose_option():
+    cmd_str = """
+    componente=$(zenity --list \
+                        --title="Flatty" \
+                        --height=250 \
+                        --width=350 \
+                        --ok-label="Continue" \
+                        --cancel-label="Exit" \
+                        --text="Choose an option:" \
+                        --radiolist \
+                        --column="" \
+                        --column="Options" \
+                        1 "Update packages" 2 "Install packages" 3 "Uninstall packages")
+    ans=$?
+    if [ $ans -eq 0 ]
+    then
+        echo "${componente}"
+    else
+        echo "ERROR"
+    fi
+    """
+
+    output = subprocess.check_output(cmd_str, shell=True)
+    output = output.decode("utf-8").strip()
+
+    return output
+
+
+def uninstall():
+
+    cmd_str = """
+    componente=$(zenity --list \
+                        --title="Flatty" \
+                        --height=600 \
+                        --width=800 \
+                        --ok-label="Uninstall" \
+                        --cancel-label="Exit" \
+                        --text="Installed Packages" \
+                        --radiolist \
+                        --column="" \
+                        --column="Id" \
+                        --column="Name" \
+                        --column="Description" \
+                        --hide-column=2 \
+                        <paquetes>)
+    ans=$?
+    if [ $ans -eq 0 ]
+    then
+        echo "${componente}"
+    else
+        echo "ERROR"
+    fi
+    """
+
+    # Get installed packages and parse the list
+    list_ = flatpak_list()
+
+    l_str = ""
+    i = 1
+    for line in list_:
+        words = line.split("\t")
+        print(f"words: {words}\n")
+
+        pkg_id = words[1]
+        pkg_name = words[0]
+        try:
+            pkg_desc = words[2]
+        except IndexError:
+            pkg_desc = "-"
+
+        l_str += f"{i} \"{pkg_id}\" \"{pkg_name}\" \"{pkg_desc}\" "
+        i += 1
+    cmd_str = cmd_str.replace("<paquetes>", l_str)
+
+    # Run terminal command
+    pkg_id = subprocess.check_output(cmd_str, shell=True)
+    pkg_id = pkg_id.decode("utf-8").strip()
+    if pkg_id == "ERROR":
+        return "EXIT"
+    elif pkg_id == "":
+        return ""
+
+    # Start progress bar
+    prg_str = f"zenity  --progress \
+                        --title='Flatty' \
+                        --height=120 \
+                        --width=600 \
+                        --text='Removing {pkg_id}...' \
+                        --ok-label='Hide' \
+                        --pulsate \
+                        --no-cancel"
+
+    proc = Popen([prg_str],
+                 shell=True,
+                 stdin=None,
+                 stdout=None,
+                 stderr=None,
+                 close_fds=True,
+                 preexec_fn=os.setsid)
+
+    # Uninstall package
+    exit_code = flatpak_uninstall(pkg_id)
+
+    # Kill progress bar
+    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+
+    return exit_code
+
+
+def query():
+    cmd_str = """
+    nombre=$(zenity --entry \
+                    --title="Flatty" \
+                    --ok-label="Continue" \
+                    --cancel-label="Exit" \
+                    --height=120 \
+                    --width=600 \
+                    --text="Please enter an app name:")
+    ans=$?
+    if [ $ans -eq 0 ]
+    then
+        echo "${nombre}"
+    else
+        echo "ERROR"
+    fi
+    """
+    output = subprocess.check_output(cmd_str, shell=True)
+    output = output.decode("utf-8").strip()
+
+    return output
+
+
+def results(query):
+
+    cmd_str = """
+    componente=$(zenity --list \
+                    --title="Flatty" \
+                    --height=600 \
+                    --width=800 \
+                    --ok-label="Install" \
+                    --cancel-label="Exit" \
+                    --text="Results for <query>:" \
+                    --radiolist \
+                    --column="" \
+                    --column="Package id" \
+                    --column="Name" \
+                    --column="Description" \
+                    --hide-column=2 \
+                    <paquetes> )
+    ans=$?
+    if [ $ans -eq 0 ]
+    then
+        echo "${componente}"
+    else
+        echo "ERROR"
+    fi
+    """
+
+    exit_code = flatpak_search(query)
+    if exit_code == "ERROR":
+        return "EMPTY"
+
+    output = exit_code.split("\n")
+
+    # Consider only flathub results
+    output = [x for x in output if "flathub" in x]
+
+    # Remove duplicates and build a dictionary
+    dict_ = {}
+    for line in output:
+        words = line.split("\t")
+        dict_[words[2]] = words[:2]
+
+    # Parse the command string
+    l_str = ""
+    i = 1
+    for key in dict_:
+        pkg_id = key
+        pkg_name = dict_[key][0]
+        pkg_description = dict_[key][1]
+
+        l_str += f"{i} \"{pkg_id}\" \"{pkg_name}\" \"{pkg_description}\" "
+        i += 1
+
+    cmd_str = cmd_str.replace("<paquetes>", l_str)
+    cmd_str = cmd_str.replace("<query>", query)
+
+    # Run terminal command
+    output = subprocess.check_output(cmd_str, shell=True)
+    output = output.decode("utf-8").strip()
+
+    print(f"results output: [{output}]")
+
+    return output
+
+
+def install(pkg_id):
+
+    prg_str = f"zenity  --progress \
+                        --height=120 \
+                        --width=600 \
+                        --title='Flatty' \
+                        --text='Installing {pkg_id}...'\
+                        --ok-label='Hide' \
+                        --pulsate \
+                        --no-cancel"
+
+    # Start progress bar
+    proc = Popen([prg_str],
+                 shell=True,
+                 stdin=None,
+                 stdout=None,
+                 stderr=None,
+                 close_fds=True,
+                 preexec_fn=os.setsid)
+
+    # Run terminal command
+    exit_code = flatpak_install(pkg_id)
+
+    # Stop progress bar
+    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+
+    # Success
+    if exit_code == "OK":
+        return exit_code
+
+    # Choice found, rerun
+    if "Similar refs found" in exit_code:
+        first_ref = grab(exit_code, "1) ", " ").strip()
+        return install(first_ref)
+
+    # Error
+    return "ERROR"
+
+
+def update():
+
+    cmd_str = """(<content>) | zenity --progress \
+                                      --title='Flatty' \
+                                      --text='Looking for updates, please wait...' \
+                                      --height=120 \
+                                      --width=600 \
+                                      --no-cancel \
+                                      --auto-close"""
+
+    # Get installed packages and parse the list
+    list_ = flatpak_list()
+    list_len = len(list_)
+    progress = 0
+    content = ""
+
+    for line in list_:
+        progress_unit = int((progress/list_len)*100)
+        content += f"echo '{progress_unit}'\n"
+
+        words = line.split("\t")
+        pkg_id = f"{words[1]} "
+
+        content += f"flatpak update {pkg_id} -y\n"
+        content += f"echo '# Looking for updates for {pkg_id}'\n"
+        progress += 1
+
+    cmd_str = cmd_str.replace("<content>", content + "echo '100'")
+
+    # Run terminal command
+    output = subprocess.check_output(cmd_str, shell=True)
+    output = output.decode("utf-8").strip()
+
+    return output
+
+
+def cleanup():
+
+    prg_str = f"zenity  --progress \
+                        --title='Flatty' \
+                        --text='Cleaning up...' \
+                        --height=120 \
+                        --width=600 \
+                        --pulsate \
+                        --no-cancel"
+
+    # Start progress bar
+    proc = Popen([prg_str],
+                 shell=True,
+                 stdin=None,
+                 stdout=None,
+                 stderr=None,
+                 close_fds=True,
+                 preexec_fn=os.setsid)
+
+    # Run terminal command
+    flatpak_cleanup()
+
+    # Stop progress bar
+    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+
+
+def popup(text, type="info"):
+
+    cmd_str = f"zenity --{type}  \
+                       --title='Flatty' \
+                       --width=250 \
+                       --text='{text}'"
+    subprocess.call(cmd_str, shell=True)
+
+
+# --- Main ---
+
+def main():
+
+    output = choose_option()
+
+    if output == "":
+
+        popup("No option selected.", type="error")
+        return
+
+    elif output == "Install packages":
+
+        pkg_name = query()
+        if pkg_name == "":
+            popup("Empty query!", type="error")
+            return
+        elif pkg_name == "ERROR":
+            return
+
+        pkg_id = results(pkg_name)
+        if pkg_id == "EMPTY":
+            popup(f"No matches found for {pkg_name}.", type="error")
+            return
+        elif pkg_id == "":
+            popup(f"No packages selected for installation.", type="error")
+            return
+        elif pkg_id == "ERROR":
+            return
+
+        exit_code = install(pkg_id)
+        if exit_code == "ERROR":
+            popup(f"Error installing {pkg_id}.", type="error")
+        else:
+            popup(f"Package {pkg_id} installed successfully.")
+
+    elif output == "Uninstall packages":
+
+        while True:
+            exit_code = uninstall()
+            if exit_code == "":
+                popup("No packages selected for removal.")
+            elif exit_code == "ERROR":
+                popup(f"Error while removing {pkg_id}.", type="error")
+            elif exit_code == "EXIT":
+                break
+
+    elif output == "Update packages":
+        update()
+        cleanup()
+        popup("All availiable updates have been installed.")
+
+    return
+
+
+if __name__ == "__main__":
+    main()
