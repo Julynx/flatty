@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Flatty
+Comment="Simple GUI client for the flatpak command-line utility."
+Exec=$HOME/flatty/bin/flatty
+Terminal=false
+Type=Application
+Icon=$HOME/flatty/icons/flatty.png
