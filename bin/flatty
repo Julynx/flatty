@@ -281,7 +281,7 @@ def results(query):
     for key in dict_:
         pkg_id = key
         pkg_name = dict_[key][0]
-        pkg_description = dict_[key][1]
+        pkg_description = dict_[key][1].replace("`", "")
 
         l_str += f"{i} \"{pkg_id}\" \"{pkg_name}\" \"{pkg_description}\" "
         i += 1
