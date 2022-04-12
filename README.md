@@ -35,6 +35,9 @@ and may or may not run on other linux distributions or desktop environments.
 ## Installation
 The following commands will download the latest version of [Flatty](https://github.com/Julynx/flatty) from this repository and install it:
 ```
+cd Downloads
+```
+```
 git clone https://github.com/Julynx/flatty
 ```
 ```
