@@ -158,6 +158,8 @@ def uninstall():
 
     # Get installed packages and parse the list
     list_ = flatpak_list()
+    if list_ == "ERROR":
+        return "EMPTY"
 
     l_str = ""
     i = 1
@@ -349,6 +351,9 @@ def update():
 
     # Get installed packages and parse the list
     list_ = flatpak_list()
+    if list_ == "ERROR":
+        return "EMPTY"
+
     list_len = len(list_)
     progress = 0
     content = ""
@@ -452,14 +457,18 @@ def main():
                 popup("No packages selected for removal.")
             elif exit_code == "ERROR":
                 popup(f"Error while removing {pkg_id}.", type="error")
+            elif exit_code == "EMPTY":
+                popup("No installed packages.")
             elif exit_code == "EXIT":
                 break
 
     elif output == "Update packages":
-        update()
-        cleanup()
-        popup("All availiable updates have been installed.")
-
+        exit_code = update()
+        if exit_code.startswith("EMPTY"):
+            popup("No installed packages.")
+        else:
+            cleanup()
+            popup("All availiable updates have been installed.")
     return
 
 
