@@ -35,14 +35,11 @@ and may or may not run on other linux distributions or desktop environments.
 ## Installation
 The following commands will download the latest version of [Flatty](https://github.com/Julynx/flatty) from this repository and install it:
 ```
-cd Downloads
-```
-```
 git clone https://github.com/Julynx/flatty
 cd flatty
 ```
 ```
-chmod +x install.sh bin/flatty
+sudo chmod +x install.sh bin/flatty
 ```
 ```
 ./install.sh
@@ -51,14 +48,12 @@ chmod +x install.sh bin/flatty
 ## Uninstalling
 To uninstall [Flatty](https://github.com/Julynx/flatty), run:
 ```
-cd flatty
-```
-```
-chmod +x uninstall.sh
+sudo chmod +x uninstall.sh
 ```
 ```
 ./uninstall.sh
 ```
+
 ## FAQ
 ### **Does Flatty support other packages besides Flatpak?**
 
