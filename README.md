@@ -39,8 +39,6 @@ cd Downloads
 ```
 ```
 git clone https://github.com/Julynx/flatty
-```
-```
 cd flatty
 ```
 ```
